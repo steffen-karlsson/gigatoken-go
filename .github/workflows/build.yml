@@ -60,10 +60,25 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Install zig
-        uses: mlugg/setup-zig@v1
-      # zig provides the C, C++ and cgo compilers for the musl cross
-      # build in one toolchain (apt's musl-tools is C only; simdutf's
-      # build script needs a C++ compiler too).
+        run: |
+          set -eu
+          url=$(curl -fsSL --retry 5 --retry-all-errors \
+            https://ziglang.org/download/index.json | python3 -c "import json,sys
+          d = json.load(sys.stdin)
+          for k, v in d.items():
+              if k != 'master' and isinstance(v, dict):
+                  t = v.get('x86_64-linux') or v.get('linux-x86_64')
+                  if t:
+                      print(t['tarball']); break")
+          echo "zig tarball: $url"
+          curl -fsSL --retry 5 --retry-all-errors -m 600 -o /tmp/zig.tar.xz "$url"
+          mkdir -p "$HOME/.zig"
+          tar -xJf /tmp/zig.tar.xz -C "$HOME/.zig" --strip-components=1
+          echo "$HOME/.zig" >> "$GITHUB_PATH"
+          "$HOME/.zig/zig" version
+      # zig provides the C, C++ (with its own musl libc++) and cgo
+      # compilers for the musl cross build in one toolchain (apt's
+      # musl-tools is C only; simdutf's objects reference the C++ runtime)
       - name: Build static binary and shim package
         run: |
           make static-linux \
