@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Wrapper around `zig c++` for the x86_64-unknown-linux-musl cross build.
+# Same rationale as musl-cc: strips the cc crate's rust-triple
+# `--target=` flags and applies zig's target spelling. Needed for
+# simdutf, whose objects reference the C++ runtime (zig links its musl
+# libc++ statically).
+set -eu
+
+args=()
+for a in "$@"; do
+  case "$a" in
+    --target=*) ;; # rust-triple form; replaced below
+    *) args+=("$a") ;;
+  esac
+done
+exec zig c++ -target x86_64-linux-musl "${args[@]}"

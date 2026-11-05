@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Wrapper around `zig cc` for the x86_64-unknown-linux-musl cross build.
+#
+# Why: the Rust `cc` crate (build scripts of ring, zstd, simdutf, ...)
+# appends `--target=<rust-triple>` (e.g. --target=x86_64-unknown-linux-musl)
+# when cross-compiling with a clang-family compiler, and zig's target
+# query parser rejects the `unknown` component. Drop the rust-triple
+# flags and supply zig's own target spelling instead.
+#
+# Used via `make static-linux MUSL_CC=./rust/zig/musl-cc MUSL_CXX=./rust/zig/musl-cxx`.
+# Requires `zig` on PATH.
+set -eu
+
+args=()
+for a in "$@"; do
+  case "$a" in
+    --target=*) ;; # rust-triple form; replaced below
+    *) args+=("$a") ;;
+  esac
+done
+exec zig cc -target x86_64-linux-musl "${args[@]}"

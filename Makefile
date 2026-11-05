@@ -20,11 +20,9 @@ GPT2_URL     ?= https://huggingface.co/gpt2/resolve/main/tokenizer.json
 TEST_JSON    := testdata/gpt2/tokenizer.json
 MUSL_TARGET   := x86_64-unknown-linux-musl
 # Cross toolchains for the musl build. Defaults assume apt `musl-tools`
-# (musl-gcc, C only); since simdutf's build script also needs a C++
-# compiler, CI overrides these with zig:
-#   make static-linux \
-#     MUSL_CC="zig cc -target x86_64-linux-musl" \
-#     MUSL_CXX="zig c++ -target x86_64-linux-musl"
+# (musl-gcc, C only); simdutf's build script also needs a C++ compiler,
+# so CI uses zig through wrappers that fix the target flags:
+#   make static-linux MUSL_CC=./rust/zig/musl-cc MUSL_CXX=./rust/zig/musl-cxx
 MUSL_CC   ?= musl-gcc
 MUSL_CXX ?= musl-g++
 
