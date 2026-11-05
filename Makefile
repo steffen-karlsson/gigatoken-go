@@ -25,6 +25,12 @@ MUSL_TARGET   := x86_64-unknown-linux-musl
 #   make static-linux MUSL_CC=./rust/zig/musl-cc MUSL_CXX=./rust/zig/musl-cxx
 MUSL_CC   ?= musl-gcc
 MUSL_CXX ?= musl-g++
+# The final go/cgo link must provide the unwinder for Rust's
+# panic=unwind runtime (rustc adds it for rust binaries; a staticlib
+# consumer must link it explicitly), plus the C++ runtime for simdutf
+# (zig links its musl libc++ statically via -lc++).
+RUST_SYSROOT := $(shell rustc --print sysroot)
+MUSL_UNWIND   := $(RUST_SYSROOT)/lib/rustlib/$(MUSL_TARGET)/lib/self-contained/libunwind.a
 
 .PHONY: all rust build test testdata demo lint fmt-check clippy gofmt-check vet \
         clean distclean static-linux package
@@ -90,7 +96,9 @@ static-linux:
 	@mkdir -p rust/lib
 	@cp rust/target/$(MUSL_TARGET)/release/libgigatoken_shim.a $(SHIM_LIB)
 	CC="$(abspath $(MUSL_CC))" ./rust/gen-pystub.sh $(SHIM_LIB) rust/lib
-	CGO_ENABLED=1 CC="$(abspath $(MUSL_CC))" go build -trimpath -ldflags="-s -w" \
+	CGO_ENABLED=1 CC="$(abspath $(MUSL_CC))" \
+		CGO_LDFLAGS="$(MUSL_UNWIND) -lc++" \
+		go build -trimpath -ldflags="-s -w" \
 		-o gigatoken-demo ./cmd/gigatoken-demo
 	@file gigatoken-demo || true
 
