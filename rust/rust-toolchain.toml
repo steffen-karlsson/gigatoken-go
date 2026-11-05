@@ -1,0 +1,4 @@
+# gigatoken uses `#![feature(portable_simd)]`, so nightly is required.
+# rustup auto-selects this for anything run inside rust/.
+[toolchain]
+channel = "nightly"

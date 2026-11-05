@@ -1,0 +1,6 @@
+# gigatoken's Cargo.toml uses the unstable `profile-rustflags` key in its
+# `[profile.profiling]`; parsing its manifest requires opting in, even on
+# nightly. The profile itself only applies when *building* gigatoken's own
+# workspace — here we only consume it as a dependency.
+[unstable]
+profile-rustflags = true
