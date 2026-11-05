@@ -39,8 +39,9 @@ rust/lib/
 # Downloaded test tokenizer (see Makefile `testdata` target)
 testdata/
 
-# Demo binary from `make static-linux`
-gigatoken-demo
+# Demo binary from `make static-linux` (root-anchored so it doesn't
+# ignore the cmd/gigatoken-demo source directory)
+/gigatoken-demo
 
 # macOS
 .DS_Store
