@@ -134,8 +134,15 @@ the module must be named after its GitHub URL — see `go.mod`.)
 ## Static Linux builds
 
 `make static-linux` (on a Linux host or CI runner) cross-builds the shim
-for `x86_64-unknown-linux-musl` and compiles Go with `CC=musl-gcc`,
-producing a fully static, distroless-friendly binary. Use
-`CC="zig cc -target x86_64-linux-musl"` to skip installing musl.
+for `x86_64-unknown-linux-musl` and compiles Go with the musl cross
+compiler, producing a fully static, distroless-friendly binary. The
+simdutf dependency needs a C++ cross compiler, which apt's `musl-tools`
+doesn't ship — CI therefore uses zig for the whole toolchain:
+
+```sh
+make static-linux \
+  MUSL_CC="zig cc -target x86_64-linux-musl" \
+  MUSL_CXX="zig c++ -target x86_64-linux-musl"
+```
 Fat-LTO release builds are slow; cache `rust/target` (or just
 `rust/lib/libgigatoken_shim.a`) in CI.

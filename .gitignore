@@ -41,3 +41,6 @@ testdata/
 
 # Demo binary from `make static-linux`
 gigatoken-demo
+
+# macOS
+.DS_Store

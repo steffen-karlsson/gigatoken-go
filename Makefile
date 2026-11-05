@@ -19,6 +19,14 @@ SHIM_LIB     := rust/lib/libgigatoken_shim.a
 GPT2_URL     ?= https://huggingface.co/gpt2/resolve/main/tokenizer.json
 TEST_JSON    := testdata/gpt2/tokenizer.json
 MUSL_TARGET   := x86_64-unknown-linux-musl
+# Cross toolchains for the musl build. Defaults assume apt `musl-tools`
+# (musl-gcc, C only); since simdutf's build script also needs a C++
+# compiler, CI overrides these with zig:
+#   make static-linux \
+#     MUSL_CC="zig cc -target x86_64-linux-musl" \
+#     MUSL_CXX="zig c++ -target x86_64-linux-musl"
+MUSL_CC   ?= musl-gcc
+MUSL_CXX ?= musl-g++
 
 .PHONY: all rust build test testdata demo lint fmt-check clippy gofmt-check vet \
         clean distclean static-linux package
@@ -73,18 +81,18 @@ vet:
 # --- Packaging / release ------------------------------------------------
 
 # Fully static Linux build (x86_64 musl): self-contained binary, friendly
-# to distroless and scratch images. Run on a Linux host or CI runner with
-# `musl-tools` installed. The CC_* exports point the C build scripts of
-# ring/zstd/lz4/brotli (dep-tree natives) at the musl cross compiler.
-static-linux: export CC_x86_64_unknown_linux_musl = musl-gcc
-static-linux: export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER = musl-gcc
+# to distroless and scratch images. Run on a Linux host or CI runner.
+# The CC_*/CXX_* exports point the C/C++ build scripts of the dep-tree
+# natives (ring, zstd, simdutf, ...) at the cross toolchain.
+static-linux: export CC_x86_64_unknown_linux_musl = $(MUSL_CC)
+static-linux: export CXX_x86_64_unknown_linux_musl = $(MUSL_CXX)
 static-linux:
 	rustup target add $(MUSL_TARGET)
 	cd rust && cargo build --release --target $(MUSL_TARGET)
 	@mkdir -p rust/lib
 	@cp rust/target/$(MUSL_TARGET)/release/libgigatoken_shim.a $(SHIM_LIB)
-	CC=musl-gcc ./rust/gen-pystub.sh $(SHIM_LIB) rust/lib
-	CGO_ENABLED=1 CC=musl-gcc go build -trimpath -ldflags="-s -w" \
+	CC="$(MUSL_CC)" ./rust/gen-pystub.sh $(SHIM_LIB) rust/lib
+	CGO_ENABLED=1 CC="$(MUSL_CC)" go build -trimpath -ldflags="-s -w" \
 		-o gigatoken-demo ./cmd/gigatoken-demo
 	@file gigatoken-demo || true
 
