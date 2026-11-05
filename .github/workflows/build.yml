@@ -1,0 +1,172 @@
+name: build
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # --- Gates: everything below must pass before any package is built ----
+
+  lint:
+    name: Lint (rust + go)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: make lint
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      # Builds the Rust shim, downloads GPT-2's tokenizer.json for the
+      # test suite, then runs go test.
+      - run: make test
+
+  # --- Package: only on merges to main, only after the gates are green --
+
+  build:
+    name: Build package
+    needs: [lint, test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: x86_64-unknown-linux-musl
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install musl toolchain
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: Build static binary and shim package
+        run: |
+          make static-linux
+          make package VERSION=dev TARGET=x86_64-unknown-linux-musl
+      - name: Smoke test the static binary
+        run: |
+          curl -fsSL -o testdata-tokenizer.json https://huggingface.co/gpt2/resolve/main/tokenizer.json
+          ./gigatoken-demo testdata-tokenizer.json "Hello, world!"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/*
+          if-no-files-found: error
+
+  # --- Release: conventional-commit semver, tag, attach the packages ----
+
+  version:
+    name: Calculate version
+    needs: build
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Calculate semantic version
+        id: version
+        run: |
+          python3 - <<'PY'
+          import subprocess, sys, re, os
+
+          gh_output = os.environ.get("GITHUB_OUTPUT", "/dev/null")
+
+          def set_output(name, value):
+              with open(gh_output, "a") as f:
+                  f.write(f"{name}={value}\n")
+
+          result = subprocess.run(
+              ["git", "describe", "--tags", "--abbrev=0"],
+              capture_output=True, text=True
+          )
+          has_tag = result.returncode == 0
+          latest_tag = result.stdout.strip() if has_tag else None
+
+          subject = subprocess.run(
+              ["git", "log", "-1", "--pretty=format:%s"],
+              capture_output=True, text=True
+          ).stdout.strip()
+
+          if not has_tag:
+              set_output("version", "0.1.0")
+              set_output("tag", "v0.1.0")
+              sys.exit(0)
+
+          current = latest_tag.lstrip("v")
+          major, minor, patch = (int(p) for p in current.split("."))
+
+          m = re.match(r"^(\w+)(\(.+\))?!?:", subject)
+          if m:
+              ctype = m.group(1)
+              if "!" in subject.split(":")[0] or "BREAKING CHANGE" in subject:
+                  major, minor, patch = major + 1, 0, 0
+              elif ctype == "feat":
+                  minor, patch = minor + 1, 0
+              else:
+                  patch += 1
+          else:
+              patch += 1
+
+          set_output("version", f"{major}.{minor}.{patch}")
+          set_output("tag", f"v{major}.{minor}.{patch}")
+          PY
+
+  release:
+    name: Tag and release
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Rename to final version
+        run: |
+          cd dist
+          for f in *; do mv "$f" "${f/dev/${{ needs.version.outputs.version }}}"; done
+          ls -la
+
+      - name: Create tag
+        run: |
+          git tag ${{ needs.version.outputs.tag }}
+          git push origin ${{ needs.version.outputs.tag }}
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: ${{ needs.version.outputs.tag }}
+          generate_release_notes: true
+          files: dist/*
+          fail_on_unmatched_files: true

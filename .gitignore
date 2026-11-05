@@ -31,3 +31,13 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Rust shim build artifacts
+rust/target/
+rust/lib/
+
+# Downloaded test tokenizer (see Makefile `testdata` target)
+testdata/
+
+# Demo binary from `make static-linux`
+gigatoken-demo

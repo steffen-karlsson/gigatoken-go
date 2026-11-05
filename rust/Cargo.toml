@@ -1,0 +1,17 @@
+[package]
+name = "gigatoken-shim"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["staticlib"]
+name = "gigatoken_shim"
+
+[dependencies]
+# pip-only distribution upstream, so a git dep it is. Pin a commit, not a
+# branch: upstream is young and the Rust API has no stability contract.
+gigatoken = { git = "https://github.com/marcelroed/gigatoken", rev = "cd5ee648c6202f9e51ac75a2bf9d86cb68d9ba67" }
+
+[profile.release]
+# Match upstream's profile for the perf.
+lto = "fat"
