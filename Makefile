@@ -82,15 +82,15 @@ vet:
 # to distroless and scratch images. Run on a Linux host or CI runner.
 # The CC_*/CXX_* exports point the C/C++ build scripts of the dep-tree
 # natives (ring, zstd, simdutf, ...) at the cross toolchain.
-static-linux: export CC_x86_64_unknown_linux_musl = $(MUSL_CC)
-static-linux: export CXX_x86_64_unknown_linux_musl = $(MUSL_CXX)
+static-linux: export CC_x86_64_unknown_linux_musl = $(abspath $(MUSL_CC))
+static-linux: export CXX_x86_64_unknown_linux_musl = $(abspath $(MUSL_CXX))
 static-linux:
 	rustup target add $(MUSL_TARGET)
 	cd rust && cargo build --release --target $(MUSL_TARGET)
 	@mkdir -p rust/lib
 	@cp rust/target/$(MUSL_TARGET)/release/libgigatoken_shim.a $(SHIM_LIB)
-	CC="$(MUSL_CC)" ./rust/gen-pystub.sh $(SHIM_LIB) rust/lib
-	CGO_ENABLED=1 CC="$(MUSL_CC)" go build -trimpath -ldflags="-s -w" \
+	CC="$(abspath $(MUSL_CC))" ./rust/gen-pystub.sh $(SHIM_LIB) rust/lib
+	CGO_ENABLED=1 CC="$(abspath $(MUSL_CC))" go build -trimpath -ldflags="-s -w" \
 		-o gigatoken-demo ./cmd/gigatoken-demo
 	@file gigatoken-demo || true
 
