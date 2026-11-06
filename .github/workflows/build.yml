@@ -84,7 +84,7 @@ jobs:
           make static-linux \
             MUSL_CC=./rust/zig/musl-cc \
             MUSL_CXX=./rust/zig/musl-cxx
-          make package VERSION=dev TARGET=x86_64-unknown-linux-musl
+          make package VERSION=dev TARGET=x86_64-unknown-linux-musl MUSL_UNWIND=1
       - name: Smoke test the static binary
         run: |
           curl -fsSL -o testdata-tokenizer.json https://huggingface.co/gpt2/resolve/main/tokenizer.json

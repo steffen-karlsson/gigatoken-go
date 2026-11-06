@@ -105,11 +105,23 @@ static-linux:
 # Package the static binary plus the linkable shim libraries (for
 # consuming the tokenizer package from another Go module — see README).
 # Run after `make static-linux` (or `make rust` for a native build).
+#
+# For the musl target, pass MUSL_UNWIND explicitly to also ship the
+# self-contained unwinder and the zig cc/c++ wrappers, so consumers can
+# reproduce the static link without a Rust toolchain:
+#   make package VERSION=x TARGET=x86_64-unknown-linux-musl MUSL_UNWIND=1
 package:
 	@mkdir -p dist
 	tar czf dist/gigatoken-demo-$(VERSION)-$(TARGET).tar.gz gigatoken-demo
-	tar -C rust/lib -czf dist/gigatoken-shim-$(VERSION)-$(TARGET).tar.gz \
-		libgigatoken_shim.a libpystub.a pystub.c
+	@if [ "$(strip $(MUSL_UNWIND))" = "1" ]; then \
+		cp $(RUST_SYSROOT)/lib/rustlib/$(MUSL_TARGET)/lib/self-contained/libunwind.a rust/lib/libunwind.a; \
+		tar -C rust/lib -czf dist/gigatoken-shim-$(VERSION)-$(TARGET).tar.gz \
+			libgigatoken_shim.a libpystub.a pystub.c libunwind.a; \
+		tar -C rust/zig -czf dist/gigatoken-zig-$(VERSION)-$(TARGET).tar.gz musl-cc musl-cxx; \
+	else \
+		tar -C rust/lib -czf dist/gigatoken-shim-$(VERSION)-$(TARGET).tar.gz \
+			libgigatoken_shim.a libpystub.a pystub.c; \
+	fi
 	@echo "packaged -> dist/"
 
 clean:

@@ -77,9 +77,11 @@ through the Makefile targets:
 
 ## Consuming from another Go module
 
-The release ships `gigatoken-shim-<version>-<target>.tar.gz` per platform
+The release ships per-platform `gigatoken-shim-<version>-<target>.tar.gz`
 (`x86_64-unknown-linux-musl`, `aarch64-apple-darwin`) containing
-`libgigatoken_shim.a`, `libpystub.a` and `pystub.c`. Another Go application
+`libgigatoken_shim.a`, `libpystub.a`, `pystub.c` and — for the musl
+target — `libunwind.a` plus a companion `gigatoken-zig-<version>-<target>
+.tar.gz` with the `zig cc`/`zig c++` wrappers. Another Go application
 uses the tokenizer package like this:
 
 ```sh
@@ -103,6 +105,35 @@ tok, err := tokenizer.Load("/models/gpt2/tokenizer.json")
 consumer only needs the directory holding the `.a` files — no Rust
 toolchain, no Python, nothing else. (For this import path to resolve,
 the module must be named after its GitHub URL — see `go.mod`.)
+
+### Fully static (musl) consumers
+
+Binaries destined for distroless/static or scratch images must link
+musl. The musl shim tarball ships everything except the zig toolchain
+itself (https://ziglang.org — one download, no install):
+
+```sh
+# 1. Fetch the shim + zig wrapper tarballs for your version
+V=1.1.0
+T=x86_64-unknown-linux-musl
+curl -fsSL -o shim.tar.gz \
+  https://github.com/steffen-karlsson/gigatoken-go/releases/download/v$V/gigatoken-shim-$V-$T.tar.gz
+curl -fsSL -o zig.tar.gz \
+  https://github.com/steffen-karlsson/gigatoken-go/releases/download/v$V/gigatoken-zig-$V-$T.tar.gz
+mkdir -p shim-lib && tar -C shim-lib -xzf shim.tar.gz
+mkdir -p shim-zig && tar -C shim-zig -xzf zig.tar.gz
+
+# 2. Build fully static with zig as the musl C toolchain
+export PATH="$PWD/shim-zig:$PATH"
+CGO_ENABLED=1 CC=shim-zig/musl-cc \
+  CGO_LDFLAGS="-L$PWD/shim-lib -lunwind -lc++" \
+  go build -o my-static-binary ./cmd/my-app
+```
+
+The wrapper expects `zig` on `PATH`; `-lunwind` links Rust's musl
+self-contained unwinder shipped in the tarball and `-lc++` resolves to
+zig's bundled musl libc++, both required by the shim archive. The result
+runs in distroless/static and scratch images.
 
 ## Design notes
 
