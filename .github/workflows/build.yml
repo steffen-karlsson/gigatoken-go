@@ -125,11 +125,42 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
+  # Native glibc build: the archive consumers on Linux link against for
+  # dev/test builds (test binaries run on the host). The musl package
+  # above is only for fully-static release binaries.
+  build-gnu:
+    name: Build package (linux-gnu)
+    needs: [lint, test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build shim and demo (native x86_64 glibc)
+        run: |
+          make rust
+          go build -trimpath -ldflags="-s -w" -o gigatoken-demo ./cmd/gigatoken-demo
+      - name: Smoke test
+        run: |
+          make testdata
+          ./gigatoken-demo testdata/gpt2/tokenizer.json "Hello, world!"
+      - name: Package
+        run: make package VERSION=dev TARGET=x86_64-unknown-linux-gnu
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-gnu
+          path: dist/*
+          if-no-files-found: error
+
   # --- Release: conventional-commit semver, tag, attach the packages ----
 
   version:
     name: Calculate version
-    needs: [build, build-darwin]
+    needs: [build, build-darwin, build-gnu]
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}

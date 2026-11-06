@@ -78,7 +78,8 @@ through the Makefile targets:
 ## Consuming from another Go module
 
 The release ships per-platform `gigatoken-shim-<version>-<target>.tar.gz`
-(`x86_64-unknown-linux-musl`, `aarch64-apple-darwin`) containing
+(`x86_64-unknown-linux-musl`, `x86_64-unknown-linux-gnu`,
+`aarch64-apple-darwin`) containing
 `libgigatoken_shim.a`, `libpystub.a`, `pystub.c` and — for the musl
 target — `libunwind.a` plus a companion `gigatoken-zig-<version>-<target>
 .tar.gz` with the `zig cc`/`zig c++` wrappers. Another Go application
@@ -107,6 +108,14 @@ toolchain, no Python, nothing else. (For this import path to resolve,
 the module must be named after its GitHub URL — see `go.mod`.)
 
 ### Fully static (musl) consumers
+
+On Linux, pick the archive by what the binary must do: `x86_64-unknown-linux-gnu`
+for anything that runs on the build host — tests, dev builds, anything
+linking against the system glibc — and `x86_64-unknown-linux-musl` for
+release binaries. Test binaries in particular force an external link
+against the host C library, so they cannot link through a musl cross
+toolchain; CI should fetch the gnu archive for `go test` and reserve
+the musl flow below for release builds.
 
 Binaries destined for distroless/static or scratch images must link
 musl. The musl shim tarball ships everything except the zig toolchain
