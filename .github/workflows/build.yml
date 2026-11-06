@@ -91,7 +91,37 @@ jobs:
           ./gigatoken-demo testdata-tokenizer.json "Hello, world!"
       - uses: actions/upload-artifact@v4
         with:
-          name: dist
+          name: dist-linux
+          path: dist/*
+          if-no-files-found: error
+
+  build-darwin:
+    name: Build package (darwin-arm64)
+    needs: [lint, test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: aarch64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build shim and demo (native arm64)
+        run: |
+          make rust
+          go build -trimpath -ldflags="-s -w" -o gigatoken-demo ./cmd/gigatoken-demo
+      - name: Smoke test
+        run: |
+          make testdata
+          ./gigatoken-demo testdata/gpt2/tokenizer.json "Hello, world!"
+      - name: Package
+        run: make package VERSION=dev TARGET=aarch64-apple-darwin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-darwin
           path: dist/*
           if-no-files-found: error
 
@@ -99,7 +129,7 @@ jobs:
 
   version:
     name: Calculate version
-    needs: build
+    needs: [build, build-darwin]
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -168,8 +198,9 @@ jobs:
       - name: Download packages
         uses: actions/download-artifact@v4
         with:
-          name: dist
           path: dist
+          merge-multiple: true
+          pattern: dist-*
 
       - name: Rename to final version
         run: |

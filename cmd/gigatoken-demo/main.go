@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"gigatoken-go/tokenizer"
+	"github.com/steffen-karlsson/gigatoken-go/tokenizer"
 )
 
 func main() {

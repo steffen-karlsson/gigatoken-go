@@ -70,19 +70,22 @@ through the Makefile targets:
    runs the Go suite
 3. **`make static-linux` + `make package`** — only on merges to `main`,
    only after the gates pass: a fully static x86_64-musl binary plus a
-   tarball of the linkable shim libraries
+   tarball of the linkable shim libraries. A native arm64 macOS job builds
+   the same shim for `aarch64-apple-darwin` so macOS consumers can link
+   without a Rust toolchain
 4. Conventional-commit semver tag + GitHub release with the packages
 
 ## Consuming from another Go module
 
-The release ships `gigatoken-shim-<version>-x86_64-unknown-linux-musl.tar.gz`
-containing `libgigatoken_shim.a`, `libpystub.a` and `pystub.c`. Another
-Go application uses the tokenizer package like this:
+The release ships `gigatoken-shim-<version>-<target>.tar.gz` per platform
+(`x86_64-unknown-linux-musl`, `aarch64-apple-darwin`) containing
+`libgigatoken_shim.a`, `libpystub.a` and `pystub.c`. Another Go application
+uses the tokenizer package like this:
 
 ```sh
 # 1. Fetch the shim libraries for your platform
 curl -fsSL -o shim.tar.gz \
-  https://github.com/<owner>/gigatoken-go/releases/latest/download/gigatoken-shim-<version>-x86_64-unknown-linux-musl.tar.gz
+  https://github.com/steffen-karlsson/gigatoken-go/releases/latest/download/gigatoken-shim-<version>-<target>.tar.gz
 mkdir -p shim-lib && tar -C shim-lib -xzf shim.tar.gz
 
 # 2. Build with the libraries on the linker path
@@ -91,7 +94,7 @@ go build ./...
 ```
 
 ```go
-import "github.com/<owner>/gigatoken-go/tokenizer"
+import "github.com/steffen-karlsson/gigatoken-go/tokenizer"
 
 tok, err := tokenizer.Load("/models/gpt2/tokenizer.json")
 ```
